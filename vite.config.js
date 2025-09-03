@@ -9,14 +9,7 @@ import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 // https://vitejs.dev/config/
 export default defineConfig({
   server: {
-    host: true,
-    proxy: {
-      '/oss': {
-        target: 'https://nsntc-fs-plugin.oss-cn-shanghai.aliyuncs.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/oss/, '')
-      }
-    }
+    host: true
   },
   base: './',
   plugins: [

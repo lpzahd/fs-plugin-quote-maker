@@ -1489,14 +1489,15 @@ export default {
       <el-card class="header-card" shadow="hover">
         <div class="header-actions">
           <div class="logo-container">
-            <div class="logo"></div>
+            <img class="logo" src="/quote-logo.png" alt="logo" />
+            <!-- <div class="logo"></div> -->
             <h1>报价生成器<span v-if="isVip" style="margin-left: 8px;">👑</span></h1>
           </div>
           <div class="header-buttons">
             <el-tooltip
               placement="left"
               effect="light"
-              content="操作指南: 1. 创建或选择产品表格 2. 选择产品 3. 设置折扣 4. 生成报价方案"
+              content="操作指南: 1. 创建产品表格 2. 选择产品 3. 设置折扣 4. 生成报价方案"
               :visible-arrow="true"
             >
               <el-button size="small" class="help-btn"><el-icon><HelpFilled /></el-icon></el-button>
@@ -1922,7 +1923,7 @@ export default {
 .logo {
   width: 40px;
   height: 40px;
-  background-color: white;
+  background-color: transparent;
   border-radius: 8px;
   display: flex;
   align-items: center;

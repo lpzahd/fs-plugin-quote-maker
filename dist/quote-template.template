@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>报价方案列表</title>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- 引入Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <!-- <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet"> -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.9.2/html2pdf.bundle.js"></script>
+
+    <!-- 配置Tailwind -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#409eff',
+                        secondary: '#69b1ff',
+                        accent: '#f56c6c',
+                        neutral: '#f0f2f5',
+                        'neutral-dark': '#606266'
+                    },
+                    fontFamily: {
+                        sans: ['Arial', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 自定义工具类 -->
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .quote-shadow {
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            }
+            .summary-row {
+                @apply flex justify-between py-2 border-b border-gray-100;
+            }
+            .summary-row.total {
+                @apply font-bold text-lg border-t-2 border-gray-200 pt-3 mt-2;
+            }
+        }
+    </style>
+</head>
+<body class="bg-neutral min-h-screen p-4 md:p-8">
+    <div id="app" class="max-w-4xl mx-auto bg-white rounded-lg overflow-hidden quote-shadow">
+        <!-- 头部 -->
+        <header class="bg-gradient-to-r from-primary to-secondary text-white p-6 md:p-8">
+            <div class="flex flex-col md:flex-row justify-between items-start md:items-center">
+                <div class="flex items-center">
+                    <img v-if="companyInfo.logoBase64" :src="companyInfo.logoBase64" alt="企业logo" class="mr-4 h-12 w-auto object-contain rounded"/>
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-bold mb-2">报价单</h1>
+                        <p class="opacity-90">共 {{ plans.length }} 个报价方案</p>
+                    </div>
+                </div>
+                <div id="action-buttons" class="mt-4 md:mt-0 flex space-x-3">
+                    <button @click="printQuote" class="bg-white text-primary px-4 py-2 rounded-md hover:bg-opacity-90 transition flex items-center">
+                        <i class="fa fa-print mr-2"></i> 打印
+                    </button>
+                    <button @click="downloadPDF" class="bg-white text-primary px-4 py-2 rounded-md hover:bg-opacity-90 transition flex items-center">
+                        <i class="fa fa-download mr-2"></i> 下载PDF
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- 主体内容 -->
+        <main class="p-6 md:p-8">
+
+            <!-- 方案列表 -->
+            <div class="mb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-6">方案列表</h2>
+                <div v-for="plan in plans" :key="plan.id" class="mb-8 border border-gray-200 rounded-lg overflow-hidden shadow-sm">
+                    <div class="bg-gray-50 px-6 py-4 border-b">
+                        <h3 class="text-lg font-semibold">{{ plan.planName }}</h3>
+                    </div>
+                    
+                    <!-- 产品列表 -->
+                    <div class="p-6">
+                        <h4 class="font-medium mb-3 text-gray-700">产品清单</h4>
+                        <!-- 移除水平滚动，确保表格在PDF中完整显示 -->
+                        <table class="w-full border-collapse table-fixed">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[15%] border border-gray-200">产品名称</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[38%] border border-gray-200">产品功能介绍</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[13%] border border-gray-200">单价</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%] border border-gray-200">数量</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[10%] border border-gray-200">折扣</th>
+                                    <th class="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-[14%] border border-gray-200">小计</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <tr v-for="item in plan.items" :key="item.id">
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 break-words border border-gray-200" style="max-width: 120px;">{{ item.name }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 break-words border border-gray-200" style="max-width: 300px; white-space: normal; vertical-align: top;">{{ item.description || '-' }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap text-center border border-gray-200">¥{{ item.price.toFixed(2) }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap text-center border border-gray-200">{{ item.quantity }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 whitespace-nowrap text-center border border-gray-200">{{ item.discount }}%</td>
+                                    <td class="px-4 py-3 text-sm font-medium text-gray-900 whitespace-nowrap text-center border border-gray-200">¥{{ (item.price * item.quantity * item.discount / 100).toFixed(2) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 报价摘要 -->
+                    <div class="bg-gray-50 p-6 border-t">
+                        <h4 class="font-medium mb-3 text-gray-700">报价摘要</h4>
+                        <div class="summary-row">
+                            <span>产品原价小计:</span>
+                            <span>¥{{ plan.originalSubtotal.toFixed(2) }}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>产品折扣后小计:</span>
+                            <span>¥{{ plan.productLevelSubtotal.toFixed(2) }}</span>
+                        </div>
+                        <div class="summary-row">
+                            <span>优惠金额:</span>
+                            <span class="text-accent">-¥{{ plan.totalDiscountAmount.toFixed(2) }}</span>
+                        </div>
+                        <div class="summary-row total">
+                            <span>总计:</span>
+                            <span class="text-primary">¥{{ plan.total.toFixed(2) }}</span>
+                        </div>
+                        <div v-if="plan.remarks" class="summary-row mt-4 pt-2 border-t border-gray-200">
+                            <span class="font-medium">附加备注:</span>
+                            <span class="text-neutral-dark">{{ plan.remarks }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 条款和条件 -->
+            <div class="border-t pt-6 pb-8">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">条款和条件</h2>
+                <ul class="list-disc pl-5 text-sm text-neutral-dark space-y-2" v-if="companyInfo.termsAndConditions">
+                    <li v-for="term in companyInfo.termsAndConditions" :key="term">{{ term }}</li>
+                </ul>
+            </div>
+
+            <!-- 企业信息 -->
+            <div class="mb-8 bg-gray-50 p-6 rounded-lg">
+                <div class="flex flex-col md:flex-row justify-between items-start">
+                    <div class="space-y-3">
+                        <h2 class="text-xl font-bold text-gray-800 mb-2">企业信息</h2>
+                        <p v-if="companyInfo.companyName" class="text-neutral-dark">企业名称: {{ companyInfo.companyName }}</p>
+                        <p v-if="companyInfo.contactPerson" class="text-neutral-dark">联系人: {{ companyInfo.contactPerson }}</p>
+                        <p v-if="companyInfo.wechat" class="text-neutral-dark">微信: {{ companyInfo.wechat }}</p>
+                        <p v-if="companyInfo.phone" class="text-neutral-dark">联系电话: {{ companyInfo.phone }}</p>
+                    </div>
+                    <!-- 二维码展示区 -->
+                    <div class="mt-4 md:mt-0" v-if="companyInfo.qrcodeBase64">
+                        <img :src="companyInfo.qrcodeBase64" alt="二维码" class="max-w-full h-auto rounded-md shadow-sm" style="max-height: 150px;">
+                    </div>
+                </div>
+            </div>
+            
+        </main>
+
+        <!-- 页脚 -->
+        <footer class="bg-gray-50 p-6 text-center text-sm text-neutral-dark border-t">
+            <p>感谢您的信任与支持，期待与您的合作！</p>
+            <p class="mt-2">© 2025 诺飞科技有限公司. 保留所有权利.</p>
+        </footer>
+    </div>
+
+    <script>
+        // 日志控制开关
+        let isLoggingEnabled = true;
+
+        // 包装日志函数
+        const log = (...args) => { if (isLoggingEnabled) console.log(...args); };
+        const warn = (...args) => { if (isLoggingEnabled) console.warn(...args); };
+        const error = (...args) => { if (isLoggingEnabled) console.error(...args); };
+
+        // 切换日志状态的全局方法
+        window.toggleLogging = function() {
+            isLoggingEnabled = !isLoggingEnabled;
+            console.log(`日志打印已 ${isLoggingEnabled ? "开启" : "关闭"}`);
+        };
+
+        // 飞书租户访问令牌管理 - 添加了错误处理和重试机制
+        const tokenManager = {
+            getToken() {
+                const tokenInfo = localStorage.getItem('tenantAccessToken');
+                if (!tokenInfo) {
+                    return this.refreshToken();
+                }
+                const { token, expireTime } = JSON.parse(tokenInfo);
+                if (Date.now() >= expireTime) {
+                    return this.refreshToken();
+                }
+                return Promise.resolve(token);
+            },
+            refreshToken(retryCount = 0) {
+                // 使用companyInfo中的凭证
+                const MAX_RETRIES = 3;
+                const RETRY_DELAY = 2000; // 2秒
+
+                log(`尝试获取飞书令牌... (${retryCount + 1}/${MAX_RETRIES})`);
+
+                return fetch('http://47.103.43.103:8080/https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal', {
+                    method: 'POST',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'application/json; charset=utf-8',
+                    },
+                    body: JSON.stringify({
+                        app_id: appId,
+                        app_secret: appSecret
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        // 检查是否是跨域错误
+                        if (retryCount < MAX_RETRIES) {
+                            warn(`飞书令牌获取失败，${RETRY_DELAY/1000}秒后重试...`);
+                            return new Promise(resolve => {
+                                setTimeout(() => {
+                                    resolve(this.refreshToken(retryCount + 1));
+                                }, RETRY_DELAY);
+                            });
+                        }
+                        throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.code === 0) {
+                        const expireTime = Date.now() + (data.expire - 300) * 1000; // 提前5分钟刷新
+                        const tokenInfo = JSON.stringify({
+                            token: data.tenant_access_token,
+                            expireTime: expireTime
+                        });
+                        localStorage.setItem('tenantAccessToken', tokenInfo);
+                        log('飞书令牌获取成功', tokenInfo);
+                        return data.tenant_access_token;
+                    } else {
+                        error('飞书令牌获取失败:', data.msg);
+                        if (retryCount < MAX_RETRIES) {
+                            warn(`飞书令牌获取失败，${RETRY_DELAY/1000}秒后重试...`);
+                            return new Promise(resolve => {
+                                setTimeout(() => {
+                                    resolve(this.refreshToken(retryCount + 1));
+                                }, RETRY_DELAY);
+                            });
+                        }
+                        // 达到最大重试次数，返回模拟令牌
+                        return 'mock_token_for_preview';
+                    }
+                })
+                .catch(error => {
+                    error('飞书令牌请求错误:', error);
+                    // 判断是否是跨域错误
+                    if (retryCount < MAX_RETRIES && (
+                        error.message.includes('CORS') || 
+                        error.message.includes('跨域') || 
+                        error.message.includes('NetworkError')
+                    )) {
+                        warn(`检测到跨域错误，${RETRY_DELAY/1000}秒后重试...`);
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                resolve(this.refreshToken(retryCount + 1));
+                            }, RETRY_DELAY);
+                        });
+                    }
+                    // 达到最大重试次数或非跨域错误，返回模拟令牌
+                    return 'mock_token_for_preview';
+                });
+            }
+        };
+
+        // 上报管理器
+        const reportManager = {
+            reportingInterval: null,
+            ip: '未知IP', // 存储预获取的IP地址
+            userAgent: navigator.userAgent || '未知',
+            platform: navigator.platform || '未知',
+            language: navigator.language || navigator.userLanguage || '未知',
+            tokenAcquisitionFailed: false, // 标记令牌是否获取失败
+            pendingDuration: 0, // 待上报的浏览时长
+            REPORT_DURATION: 10, // 每次上报的基础时长(秒)
+
+            // 初始化 - 获取IP地址
+            async initialize() {
+                const MAX_RETRIES = 3;
+                const RETRY_DELAY = 2000; // 2秒
+                let retryCount = 0;
+
+                const fetchIpWithRetry = async () => {
+                    try {
+                        log(`尝试获取IP地址... (${retryCount + 1}/${MAX_RETRIES})`);
+                        const ipResponse = await fetch('http://47.103.43.103:8080/ip');
+                        if (ipResponse.ok) {
+                            const ipData = await ipResponse.text();
+                            //  log('原始：IP地址重新获取成功:', ipData);
+                            this.ip = ipData || '未知IP';
+                            log('IP地址获取成功:', this.ip);
+                            return;
+                        } else {
+                            error('获取IP地址失败，状态码:', ipResponse.status);
+                            if (retryCount < MAX_RETRIES) {
+                                retryCount++;
+                                warn(`IP地址获取失败，${RETRY_DELAY/1000}秒后重试...`);
+                                await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                                await fetchIpWithRetry();
+                            }
+                        }
+                    } catch (errorMsg) {
+                        error('获取IP地址请求错误:', errorMsg);
+                        if (retryCount < MAX_RETRIES && (
+                            errorMsg.message.includes('CORS') || 
+                            errorMsg.message.includes('跨域') || 
+                            errorMsg.message.includes('NetworkError')
+                        )) {
+                            retryCount++;
+                            warn(`检测到跨域错误，${RETRY_DELAY/1000}秒后重试...`);
+                            await new Promise(resolve => setTimeout(resolve, RETRY_DELAY));
+                            await fetchIpWithRetry();
+                        }
+                    }
+                };
+
+                await fetchIpWithRetry();
+                log('IP地址初始化完成:', this.ip);
+            },
+
+            // 尝试重新获取IP（无重试）
+            async tryFetchIpOnce() {
+                if (this.ip !== '未知IP') {
+                    return; // 已经有有效的IP，不需要重新获取
+                }
+
+                try {
+                    log('尝试重新获取IP地址...');
+                    const ipResponse = await fetch('http://47.103.43.103:8080/ip');
+                    if (ipResponse.ok) {
+                        const ipData = await ipResponse.text();
+                        // log('原始：IP地址重新获取成功:', ipData);
+                        this.ip = ipData || '未知IP';
+                        log('IP地址重新获取成功:', this.ip);
+                    } else {
+                        error('IP地址重新获取失败，状态码:', ipResponse.status);
+                    }
+                } catch (errorMsg) {
+                    error('IP地址重新获取请求错误:', errorMsg);
+                }
+            },
+
+            // 开始上报
+            startReporting() {
+                // 检查是否令牌获取失败
+                if (this.tokenAcquisitionFailed) {
+                    log('令牌获取失败，不启动上报');
+                    return;
+                }
+
+                // 初始化待上报时长
+                this.pendingDuration = this.REPORT_DURATION;
+
+                // 按照设定的间隔上报
+                this.reportingInterval = setInterval(() => {
+                    this.reportDurationData();
+                }, this.REPORT_DURATION * 1000);
+                log(`开始每${this.REPORT_DURATION}秒上报数据`);
+            },
+
+            // 停止上报
+            stopReporting() {
+                if (this.reportingInterval) {
+                    clearInterval(this.reportingInterval);
+                    this.reportingInterval = null;
+                    log('停止上报数据');
+                }
+            },
+
+            // 上报数据
+            async reportDurationData() {
+                try {
+                    // 检查并尝试重新获取IP
+                    await this.tryFetchIpOnce();
+
+                    // 获取token
+                    const token = await tokenManager.getToken();
+                    if (token === 'mock_token_for_preview') {
+                        log('使用模拟token，跳过上报');
+                        this.tokenAcquisitionFailed = true;
+                        this.stopReporting(); // 停止上报
+                        return;
+                    }
+
+                    const requestBody = {
+                        fields: {
+                            "报价方案": [quotePlanRecordId],
+                            "浏览时长": this.pendingDuration,
+                            "日期": Date.now(),
+                            "IP": this.ip,
+                            "浏览器类型与版本": this.userAgent,
+                            "操作系统": this.platform,
+                            "语言": this.language
+                        }
+                    };
+
+                    // 发送上报请求
+                    const response = await fetch(`http://47.103.43.103:8080/https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${durationTableId}/records`, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'application/json; charset=utf-8',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const data = await response.json();
+                    if (data.code === 0) {
+                        log('上报成功:', data);
+                        // 上报成功，重置待上报时长
+                        this.pendingDuration = this.REPORT_DURATION;
+                    } else {
+                        error('上报失败:', data.msg);
+                        // 上报失败，累加待上报时长
+                        this.pendingDuration += this.REPORT_DURATION;
+                        log(`上报失败，待上报时长累加为: ${this.pendingDuration}秒`);
+                    }
+                } catch (errorMsg) {
+                    error('上报请求错误:', errorMsg);
+                    // 请求异常，累加待上报时长
+                    this.pendingDuration += this.REPORT_DURATION;
+                    log(`上报异常，待上报时长累加为: ${this.pendingDuration}秒`);
+                }
+            },
+
+            // 上报次数数据
+            async reportCountData() {
+                try {
+                    // 检查并尝试重新获取IP
+                    await this.tryFetchIpOnce();
+
+                    // 获取token
+                    const token = await tokenManager.getToken();
+                    if (token === 'mock_token_for_preview') {
+                        log('使用模拟token，跳过上报');
+                        return;
+                    }
+
+                    const requestBody = {
+                        fields: {
+                            "报价方案": [quotePlanRecordId],
+                            "日期": Date.now(),
+                            "IP": this.ip,
+                            "浏览器类型与版本": this.userAgent,
+                            "操作系统": this.platform,
+                            "语言": this.language
+                        }
+                    };
+
+                    // 发送上报请求
+                    const response = await fetch(`http://47.103.43.103:8080/https://open.feishu.cn/open-apis/bitable/v1/apps/${appToken}/tables/${countTableId}/records`, {
+                        method: 'POST',
+                        mode: 'cors',
+                        headers: {
+                            'Content-Type': 'application/json; charset=utf-8',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(requestBody)
+                    });
+
+                    const data = await response.json();
+                    if (data.code === 0) {
+                        log('上报成功:', data);
+                    } else {
+                        error('上报失败:', data.msg);
+                    }
+                } catch (errorMsg) {
+                    error('上报请求错误:', errorMsg);
+                }
+            }
+        };
+
+        // 页面卸载时停止上报
+        window.addEventListener('beforeunload', () => {
+            reportManager.stopReporting();
+        });
+
+        const quotePlanRecordId = #{quotePlanRecordId};
+        const appToken = #{appToken};
+        const countTableId = #{countTableId}
+        const durationTableId = #{durationTableId};
+        const appId = #{appId};
+        const appSecret = #{appSecret};
+
+        // 示例数据 - 实际使用时会被真实数据替换
+        const examplePlans = #{plans}
+
+        const exampleCompanyInfo = #{companyInfo};
+
+        // 创建Vue应用
+        const { createApp } = Vue;
+        createApp({
+            data() {
+            return {
+                plans: examplePlans,
+                companyInfo: exampleCompanyInfo
+            };
+        },
+            methods: {
+                printQuote() {
+                    window.print();
+                },
+                downloadPDF() {
+                    // 获取按钮容器元素
+                    const actionButtons = document.getElementById('action-buttons');
+                    
+                    // 隐藏按钮
+                    if (actionButtons) {
+                        actionButtons.style.display = 'none';
+                    }
+                    
+                    try {
+                        // 优化PDF生成配置，确保内容适应A4纸张
+                        html2pdf()
+                            .from(document.getElementById('app'))   // 只选择app容器，避免多余的背景
+                            .set({
+                                margin:       [5, 5, 5, 5],    // 调整页边距，单位是毫米
+                                filename:     '报价方案.pdf',  // 设置文件名
+                                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }, // 明确设置A4纵向格式
+                                pagebreak: { mode: ['avoid-all'] },
+                                image:        { type: 'jpeg', quality: 0.98 },
+                                html2canvas:  { scale: 2, letterRendering: true, useCORS: true },
+                                // 确保表格在一页内显示
+                                enableLinks:  true
+                            })
+                            .save('报价方案.pdf') // 设置保存的文件名
+                            .then(() => {
+                                // PDF生成成功后重新显示按钮
+                                if (actionButtons) {
+                                    actionButtons.style.display = 'flex';
+                                }
+                            })
+                            .catch(error => {
+                                console.error('PDF生成失败:', error);
+                                // 即使出错也确保按钮显示
+                                if (actionButtons) {
+                                    actionButtons.style.display = 'flex';
+                                }
+                            });
+                    } catch (error) {
+                        console.error('PDF生成过程中发生错误:', error);
+                        // 发生异常也确保按钮显示
+                        if (actionButtons) {
+                            actionButtons.style.display = 'flex';
+                        }
+                    }
+                },
+                stopReporting() {
+                    reportManager.stopReporting();
+                },
+                // 提供一个获取令牌的方法供Vue组件使用
+                getTenantToken() {
+                    return tokenManager.getToken();
+                }
+            },
+            created() {
+                console.log('您可以通过执行 toggleLogging() 来切换日志输出')
+                // 组件创建时获取令牌
+                this.getTenantToken()
+                    .then(token => {
+                        if (token === 'mock_token_for_preview') {
+                            log('令牌获取失败，不启动上报');
+                            reportManager.tokenAcquisitionFailed = true;
+                            return;
+                        }
+                        // 先初始化上报管理器（获取IP地址）
+                        reportManager.initialize()
+                            .then(() => {
+                                // 初始化完成后开始上报
+                                reportManager.startReporting();
+
+                                reportManager.reportCountData().then(() => {
+                                    log('上报成功');
+                                }).catch(errorMsg => {
+                                    error('上报失败:', errorMsg);
+                                });
+                            })
+                            .catch(errorMsg => {
+                                error('上报管理器初始化失败:', errorMsg);
+                                // 即使初始化失败，也尝试启动上报
+                                reportManager.startReporting();
+                            });
+                    })
+                    .catch(errorMsg => {
+                        error('获取令牌失败，无法启动上报:', errorMsg);
+                        reportManager.tokenAcquisitionFailed = true;
+                    });
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
